@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Search Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        .word-search {
+            display: grid;
+            grid-template-columns: repeat(10, 30px);
+            gap: 5px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .word-search div {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #f9f9f9;
+            cursor: pointer;
+        }
+        .word-search div.found {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .word-list {
+            margin: 20px 0;
+        }
+        .word-list li {
+            list-style-type: none;
+            font-size: 18px;
+        }
+        .word-list li.found {
+            text-decoration: line-through;
+            color: gray;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #congratulations {
+            display: none;
+            font-size: 24px;
+            font-weight: bold;
+            color: green;
+            margin: 20px 0;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+    <h1>Word Search Game</h1>
+    <p>Click the letters of the words you find to mark them as found. Refresh for a new puzzle!</p>
+    <div class="word-search" id="wordSearchGrid"></div>
+    <div class="word-list" id="wordList">
+        <h3>Words to Find:</h3>
+        <ul></ul>
+    </div>
+    <button onclick="generateWordSearch()">New Puzzle</button>
+    <div id="congratulations">🎉 Congratulations! You found all the words! 🎉</div>
+
+    <script>
+        const words = ["APPLE", "BOOK", "CHAIR", "DOG", "EAGLE", "FISH", "GRAPE", "HOUSE", "ICE", "JUMP"];
+        const gridSize = 10;
+        const placedWordPositions = [];
+        let foundWords = 0;
+
+        function generateWordSearch() {
+            const gridElement = document.getElementById('wordSearchGrid');
+            const wordListElement = document.getElementById('wordList').querySelector('ul');
+            const congratulationsMessage = document.getElementById('congratulations');
+            gridElement.innerHTML = '';
+            wordListElement.innerHTML = '';
+            congratulationsMessage.style.display = 'none';
+            foundWords = 0;
+            placedWordPositions.length = 0;
+
+            // Generate a blank grid
+            const grid = Array.from({ length: gridSize }, () =>
+                Array.from({ length: gridSize }, () => String.fromCharCode(65 + Math.random() * 26))
+            );
+
+            // Place random words in the grid
+            const selectedWords = words.sort(() => 0.5 - Math.random()).slice(0, 5);
+            selectedWords.forEach(word => {
+                let placed = false;
+                while (!placed) {
+                    const direction = Math.random() > 0.5 ? 'HORIZONTAL' : 'VERTICAL';
+                    const startRow = Math.floor(Math.random() * gridSize);
+                    const startCol = Math.floor(Math.random() * gridSize);
+
+                    if (direction === 'HORIZONTAL' && startCol + word.length <= gridSize) {
+                        if (word.split('').every((_, i) => /^[A-Z]$/.test(grid[startRow][startCol + i]))) {
+                            word.split('').forEach((char, i) => {
+                                grid[startRow][startCol + i] = char;
+                                placedWordPositions.push({ row: startRow, col: startCol + i, word });
+                            });
+                            placed = true;
+                        }
+                    } else if (direction === 'VERTICAL' && startRow + word.length <= gridSize) {
+                        if (word.split('').every((_, i) => /^[A-Z]$/.test(grid[startRow + i][startCol]))) {
+                            word.split('').forEach((char, i) => {
+                                grid[startRow + i][startCol] = char;
+                                placedWordPositions.push({ row: startRow + i, col: startCol, word });
+                            });
+                            placed = true;
+                        }
+                    }
+                }
+
+                // Add to the word list
+                const li = document.createElement('li');
+                li.textContent = word;
+                li.dataset.word = word;
+                wordListElement.appendChild(li);
+            });
+
+            // Render the grid
+            grid.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    const cellElement = document.createElement('div');
+                    cellElement.textContent = cell;
+                    cellElement.dataset.row = rowIndex;
+                    cellElement.dataset.col = colIndex;
+                    cellElement.addEventListener('click', () => markCell(rowIndex, colIndex, cellElement));
+                    gridElement.appendChild(cellElement);
+                });
+            });
+        }
+
+        function markCell(row, col, cellElement) {
+            // Check if the clicked cell is part of a word
+            const wordPosition = placedWordPositions.find(pos => pos.row === row && pos.col === col);
+            if (wordPosition) {
+                const word = wordPosition.word;
+                cellElement.classList.add('found');
+
+                // Check if the entire word is found
+                const wordCells = placedWordPositions.filter(pos => pos.word === word);
+                const allFound = wordCells.every(pos => 
+                    document.querySelector(`[data-row="${pos.row}"][data-col="${pos.col}"]`).classList.contains('found')
+                );
+
+                if (allFound) {
+                    // Mark the word as found in the word list
+                    const wordListItem = document.querySelector(`[data-word="${word}"]`);
+                    if (!wordListItem.classList.contains('found')) {
+                        wordListItem.classList.add('found');
+                        foundWords++;
+                    }
+
+                    // Check if all words are found
+                    if (foundWords === 5) {
+                        celebrate();
+                    }
+                }
+            }
+        }
+
+        function celebrate() {
+            const congratulationsMessage = document.getElementById('congratulations');
+            congratulationsMessage.style.display = 'block';
+
+            // Trigger confetti
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+
+        // Generate the first puzzle on load
+        window.onload = generateWordSearch;
+    </script>
+</body>
+</html>
